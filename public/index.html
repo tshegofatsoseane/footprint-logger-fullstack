@@ -89,7 +89,28 @@
                 </div>
             </div>
 
-            <!-- Form to add new activities -->
+
+            <!-- add new activities (i reused the activity input card, too lazy to create another one!) -->
+            <div class="activity-input">
+                <div class="weekly-goal" style="margin-top:20px;">
+                    <h3>Weekly Goal</h3>
+                    <div id="weekly-goal-card" class="goal-card">
+                        <p id="goal-text">Loading weekly goal...</p>
+                        <p><strong>Category:</strong> <span id="goal-category">-</span></p>
+                        <p><strong>Target reduction:</strong> <span id="goal-target">0</span> kg CO2</p>
+                        <p><strong>Progress:</strong> <span id="goal-progress">0</span> / <span id="goal-target-2">0</span> kg CO2</p>
+                        <button id="mark-progress-btn" class="btn btn-primary">Mark 0.5 kg progress</button>
+                    </div>
+                </div>
+
+                <!-- real time tips!! -->
+                <div class="real-time-tip" style="margin-top:12px;">
+                    <h4>Tip (Real-time)</h4>
+                    <div id="tip-box">No tips yet.</div>
+                </div>
+
+            </div>
+            <!--  add new activities -->
             <div class="activity-input">
                 <h3>Add New Activity</h3>
                 <form id="activity-form">
@@ -169,5 +190,6 @@
     <div id="message" class="message" style="display: none;"></div>
 
     <script src="app.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
 </body>
 </html>
