@@ -7,6 +7,57 @@ require('dotenv').config();
 
 const app = express();
 
+const http = require('http');
+const server = http.createServer(app); // why do we need this when we already have app???
+
+const { Server } = require('socket.io');
+
+const io = new Server(server, {
+    cors: {
+        origin: true, // TODO: fix this later, probably not secure
+        credentials: true
+    }
+});
+
+// simple map to hold userId... socketId (works for single server!!)
+const userSocketMap = new Map();
+
+io.on('connection', (socket) => {
+    console.log('Socket connected:', socket.id);
+
+    // frontend should emit "register" with rthe user's userId after obtaining token
+    socket.on('register', (payload) => {
+        try {
+            const { userId } = payload || {};
+            if (userId) {
+                userSocketMap.set(userId.toString(), socket.id); // convert to string just in case
+                console.log(`Registered socket ${socket.id} for user ${userId}`);
+            }
+        } catch (err) {
+            console.warn('Socket register error', err);
+        }
+    });
+
+    socket.on('disconnect', () => {
+        // remove any mapping for this socket id
+        for (const [uid, sid] of userSocketMap.entries()) {
+            if (sid === socket.id) userSocketMap.delete(uid);
+        }
+        console.log('Socket disconnected:', socket.id);
+    });
+});
+
+
+// helper to emit a tip to a particular userId
+// adding this to app object because I couldn't figure out how to export it properly
+app.emitTipToUser = function(userId, event, payload) {
+    const sid = userSocketMap.get(String(userId));
+    if (sid) {
+        io.to(sid).emit(event, payload);
+    }
+};
+
+
 // Middleware
 app.use(cors({
     origin: true,

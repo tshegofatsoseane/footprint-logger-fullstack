@@ -163,7 +163,7 @@ router.get('/leaderboard', authenticateToken, async (req, res) => {
                     $gte: startOfMonth, 
                     $lte: endOfMonth 
                 } 
-            };
+            }; 
         }
 
         const activities = await Activity.find(query);
