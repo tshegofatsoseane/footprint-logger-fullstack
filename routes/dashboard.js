@@ -3,6 +3,7 @@ const Activity = require('../models/Activity');
 const User = require('../models/User');
 const { authenticateToken } = require('./auth');
 const { getWeekNumber } = require('./utils');
+const Goal = require('../models/Goal'); 
 
 const router = express.Router();
 

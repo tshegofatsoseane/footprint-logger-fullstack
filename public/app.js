@@ -4,6 +4,7 @@ class FootprintLogger {
         this.user = JSON.parse(localStorage.getItem("user") || "null");
         this.charts = {}; // store chart instances so i can destroy them later
         this.activityData = {};
+        this.socket = null;
         this.init();
     }
 
@@ -61,7 +62,7 @@ class FootprintLogger {
             leaderboardPeriod.addEventListener("change", () => this.loadLeaderboard());
         }
 
-        // check if user is already logged in
+        // check if user is logged in
         if (this.token && this.user) {
             document.getElementById("auth-section").style.display = "none";
             document.getElementById("app-section").style.display = "block";
@@ -69,12 +70,47 @@ class FootprintLogger {
             document.getElementById("logout-btn").style.display = "block";
             document.getElementById("user-info").textContent = "Welcome, " + this.user.username + "!";
             this.loadDashboard();
+            this.connectSocket();
+            this.loadInsights();
+
         } else {
             document.getElementById("auth-section").style.display = "block";
             document.getElementById("app-section").style.display = "none";
         }
 
         this.loadActivityData();
+
+        // mark progress quick button
+        const markBtn = document.getElementById('mark-progress-btn');
+        if (markBtn) {
+            markBtn.addEventListener('click', async () => {
+                // small placeholder amount 
+                // (cool idea: I should add inputbox to allow users to add custom amount!!)
+                const amount = 0.5;
+                try {
+                    const res = await fetch('/api/dashboard/goal/progress', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + this.token
+                        },
+                        body: JSON.stringify({ amountKg: amount })
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                        this.showMessage('Marked ' + amount + ' kg progress', 'success');
+                        // refresh goal card
+                        this.loadInsights();
+                    } else {
+                        this.showMessage(data.error || 'Failed to mark progress', 'error');
+                    }
+                } catch (err) {
+                    console.error('Mark progress error', err);
+                    this.showMessage('Network error', 'error');
+                }
+            });
+        }
+
     }
 
     async handleLogin(e) {
@@ -96,6 +132,7 @@ class FootprintLogger {
 
             if (res.ok) {
                 // save token and user info to localStorage
+                //todo: do this on footlogger part one too
                 this.token = data.token;
                 this.user = data.user;
                 localStorage.setItem("token", this.token);
@@ -212,6 +249,9 @@ class FootprintLogger {
                 this.showMessage("Activity added successfully!", "success");
                 document.getElementById("activity-form").reset();
                 this.loadDashboard(); // refresh dashboard data
+                this.loadInsights();
+
+
             } else {
                 this.showMessage(data.error, "error");
             }
@@ -338,6 +378,7 @@ class FootprintLogger {
             if (res.ok) {
                 this.showMessage("Activity deleted!", "success");
                 this.loadDashboard(); // refresh everything
+                this.loadInsights();
             } else {
                 this.showMessage("Failed to delete activity", "error");
             }
@@ -416,6 +457,89 @@ class FootprintLogger {
             messageEl.style.display = "none";
         }, 3000);
     }
+
+
+    connectSocket() {
+        try {
+            // create socket connection (will connect to same origin)
+            this.socket = io();
+
+            this.socket.on('connect', () => {
+                if (this.user && this.user.id) {
+                    this.socket.emit('register', { userId: this.user.id });
+                }
+            });
+
+            // listen for real-time insight tip
+            this.socket.on('insightTip', (payload) => {
+                if (payload && payload.tip) {
+                    document.getElementById('tip-box').textContent = payload.tip;
+                }
+                // update goal card
+                if (payload.goal) {
+                    this.renderGoalCard(payload.goal);
+                }
+            });
+
+            // listen for goal updates
+            this.socket.on('goalUpdated', (payload) => {
+                if (payload) {
+                    document.getElementById('goal-progress').textContent = payload.currentProgressKg.toFixed(2);
+                    document.getElementById('goal-target-2').textContent = payload.targetReductionKg.toFixed(2);
+                }
+            });
+
+        } catch (err) {
+            console.warn('Socket connection failed', err);
+        }
+    }
+
+    async loadInsights() {
+        try {
+            const res = await fetch('/api/dashboard/insights', {
+                headers: { 'Authorization': 'Bearer ' + this.token }
+            });
+            const data = await res.json();
+            if (res.ok) {
+                // show tip
+                if (data.tip) {
+                    document.getElementById('tip-box').textContent = data.tip;
+                }
+                // show goal
+                if (data.goal) {
+                    
+                    const goal = data.goal;
+                    this.renderGoalCard({
+                        category: goal.category,
+                        targetReductionKg: goal.targetReductionKg || goal.targetReductionKg === 0 ? goal.targetReductionKg : (goal.targetReductionKg || goal.targetReductionKg),
+                        currentProgressKg: goal.currentProgressKg || 0,
+                        week: goal.week,
+                        year: goal.year
+                    });
+                } else {
+                    // doesnt work on frontend!! (will fix later!!)
+                    document.getElementById('goal-text').textContent = 'No weekly goal yet. Log some activities!';
+                }
+            } else {
+                console.warn('Insights fetch: ', data.error || 'unknown');
+            }
+        } catch (err) {
+            console.error('Error loading insights:', err);
+        }
+    }
+
+    renderGoalCard(goal) {
+        // goal card (reminder to style frontend!!)
+        document.getElementById('goal-text').style.display = 'block';
+        document.getElementById('goal-category').textContent = goal.category || '-';
+        document.getElementById('goal-target').textContent = (goal.targetReductionKg || 0).toFixed(2);
+        document.getElementById('goal-target-2').textContent = (goal.targetReductionKg || 0).toFixed(2);
+        document.getElementById('goal-progress').textContent = (goal.currentProgressKg || 0).toFixed(2);
+    }
+
+
 }
 
 const app = new FootprintLogger();
+
+// TODO: right now most work just fine, but my code needs a lot of optimization and refactoring
